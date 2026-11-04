@@ -1,42 +1,42 @@
 # Handoff Check
 
-![Handoff Check chalte hue](demo.gif)
+![Handoff Check running](demo.gif)
 
-Thumbnail ne viewer se ek vaada kiya. Video ka pehla frame use nibhata hai ya nahi? Ye tool dono ko compare karke 100 mein se score deta hai.
+Your thumbnail makes a promise. Does the first frame of your video keep it? This tool compares the two and gives you a score out of 100.
 
-Sab kuch tumhare PC pe chalta hai. Koi account nahi, koi API key nahi, kuch upload nahi hota.
+Everything runs on your own PC. No account, no API key, and nothing is uploaded.
 
-## Chalane ka tareeka
+## Quick start
 
-### 1. Python install karo (sirf pehli baar)
-1. [python.org/downloads](https://www.python.org/downloads/) kholo aur Python download karo.
-2. Installer ki pehli screen pe **Add python.exe to PATH** pe tick lagao.
-3. **Install Now** dabao.
+### 1. Install Python (first time only)
+1. Go to [python.org/downloads](https://www.python.org/downloads/) and download Python.
+2. On the first installer screen, tick **Add python.exe to PATH**.
+3. Click **Install Now**.
 
-### 2. Tool download karo
-1. Is repo ke main page pe hare **Code** button pe click karo, phir **Download ZIP**.
-2. ZIP pe right click karke **Extract All** karo.
-3. Andar `03-handoff-check` folder kholo.
+### 2. Download the tool
+1. On the main page of this repo, click the green **Code** button, then **Download ZIP**.
+2. Right-click the ZIP and choose **Extract All**.
+3. Open the `03-handoff-check` folder.
 
-### 3. Chalao
-1. **RUN.bat** pe double click karo. Pehli baar zaroori cheezein apne aap install hongi, 1-2 minute lagenge.
-2. Apna thumbnail window mein kheench ke chhodo, **Enter** dabao.
-3. Apni video kheench ke chhodo, **Enter** dabao.
-4. Score aa jayega, aur dono pictures ke saath `handoff_report.png` khul jayegi.
+### 3. Run it
+1. Double-click **RUN.bat**. The first run installs what it needs, which takes 1-2 minutes.
+2. Drag your thumbnail into the window and press **Enter**.
+3. Drag your video into the window and press **Enter**.
+4. You get the score, and `handoff_report.png` opens with both pictures side by side.
 
-Pehle dekhna ho ki kaisa chalta hai? Dono jagah khali chhod ke Enter dabao, tool `sample` folder pe chalega.
+Want to try it first? Leave the thumbnail empty and press **Enter**. The tool runs on the `sample` folder.
 
-## Score ka matlab
+## What the score means
 
-| Score | Matlab | Kya karo |
+| Score | Result | What to do |
 |---|---|---|
-| 80 ya upar | PASS: vaada nibha | Kuch mat badlo |
-| 50 se 79 | WEAK: thoda hi match hai | Thumbnail ka main object pehle frame mein lao |
-| 50 se neeche | FAIL: viewer ko alag video dikhegi | Pehla frame thumbnail jaisa banao, phir dobara chalao |
+| 80 or more | PASS: the promise carries over | Change nothing |
+| 50 to 79 | WEAK: it only partly matches | Bring the thumbnail's main subject into the first frame |
+| Under 50 | FAIL: viewers see a different video | Rebuild the first frame to match the thumbnail, then run it again |
 
-Tool do cheezein dekhta hai: **Color match** (rang wahi hain?) aur **Layout match** (roshni aur andhera usi jagah hain?). Score in dono ka average hai. Ye sirf picture ka match batata hai, video kitni acchi hai ye nahi.
+The tool checks two things: **Color match** (are the colors the same?) and **Layout match** (are the light and dark areas in the same places?). The score is the average of the two. It measures how closely the pictures match, not how good the video is.
 
-## Sample pe asli result
+## Real results from the sample
 
 ```
 python handoff_check.py sample\thumb.png sample\video_before.mp4
@@ -52,18 +52,18 @@ HANDOFF SCORE 83/100
 Verdict: PASS, the promise carries over
 ```
 
-## Dikkat aaye to
+## Troubleshooting
 
-| Kya dikha | Kya karo |
+| What you see | What to do |
 |---|---|
-| `Python nahi mila` | Python install karo, **Add python.exe to PATH** pe tick lagake. Phir RUN.bat dobara chalao. |
-| Microsoft Store khul gaya | Python abhi install nahi hai. Upar wala step 1 karo. |
-| `Install nahi ho paya` | Internet check karo, RUN.bat dobara chalao. |
-| `File not found` | Path galat hai. File ko type mat karo, window mein kheench ke chhodo. |
-| `Could not read the video` | Video kharab hai ya format ajeeb hai. MP4 export karke try karo. |
-| Windows "protected your PC" bole | **More info**, phir **Run anyway**. Code khud padh sakte ho, `RUN.bat` aur `handoff_check.py` khule hain. |
+| `Python was not found` | Install Python with **Add python.exe to PATH** ticked, then run RUN.bat again. |
+| The Microsoft Store opens | Python is not installed yet. Follow step 1 above. |
+| `Setup failed` | Check your internet connection and run RUN.bat again. |
+| `File not found` | The path is wrong. Drag the file into the window instead of typing it. |
+| `Could not read the video` | The video is damaged or in an unusual format. Export it as MP4 and try again. |
+| Windows says "protected your PC" | Click **More info**, then **Run anyway**. You can read the code first: `RUN.bat` and `handoff_check.py` are plain text. |
 
-## Command line se
+## Command line
 
 ```
 pip install pillow numpy imageio-ffmpeg

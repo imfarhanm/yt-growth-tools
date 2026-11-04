@@ -1,9 +1,9 @@
 # YT Growth Tools
 
-Chhote free tools YouTube creators ke liye. Sab tumhare PC pe chalte hain: koi account nahi, koi API key nahi.
+Small free tools for YouTube creators. They run on your own PC, with no account and no API key.
 
-| Tool | Kya karta hai |
+| Tool | What it does |
 |---|---|
-| [03-handoff-check](03-handoff-check) | Thumbnail aur video ka pehla frame match karte hain ya nahi, 100 mein se score |
+| [03-handoff-check](03-handoff-check) | Scores out of 100 how well your video's first frame matches your thumbnail |
 
-Har folder mein `RUN.bat` hai aur README mein poora step-by-step tareeka.
+Each folder has a `RUN.bat` and a README with step-by-step instructions.
