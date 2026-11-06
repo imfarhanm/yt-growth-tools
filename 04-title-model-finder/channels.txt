@@ -1,0 +1,8 @@
+# Your Model 10: one channel link or @handle per line, 10 at most.
+# Pick channels on OTHER topics that make videos the way you do. Replace these examples with your own.
+@warikoo
+@LabourLawAdvisor
+@CARachanaRanade
+@FinanceWithSharan
+@pranjalkamra
+@Physicswallah

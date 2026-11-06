@@ -1,0 +1,66 @@
+Help me title one YouTube video. Below are real titles that beat their own channel's normal views. They come from channels on other topics.
+
+MY VIDEO: [what this video really shows, and what the viewer walks away with]
+PROOF I REALLY HAVE: [real numbers or tests in the video, or write none]
+MY VIEWER: [who watches, and what they want]
+LANGUAGE OF MY TITLES: [for example English, or Hinglish]
+
+If MY VIDEO is still in brackets or doesn't say what the video shows, stop and ask me about it. Don't guess.
+
+HOW TO WORK
+1. Some titles below won on their topic or on news, such as an IPO, a market crash, a sale or a song. Skip those, they teach nothing about titles.
+2. From the rest, pick the 3 patterns that fit MY VIDEO best. A pattern seen in more channels counts for more, but a pattern that doesn't fit is out. Say each one as the promise it makes to the viewer, in one plain line, with no words from the original title.
+3. Write 3 titles on each pattern, as a creator would say them to a friend.
+4. Throw out a title if any of these is true:
+   - It is an original title with the nouns swapped. Copying the shape word for word is a fail.
+   - It makes no sense in my topic, or nobody would really search or click it.
+   - It claims a number, result or story that isn't in PROOF I REALLY HAVE, or MY VIDEO can't deliver it.
+   - It makes two promises.
+5. Hinglish means a Hindi sentence in roman script, keeping only the English words creators really use (views, thumbnail, tag). Example: 'Tag Badalne Se Views Kyun Nahi Badhte'. A sentence in English is a fail.
+6. Keep each title short, about 45-55 characters. Don't print character counts.
+7. Do not predict views. End with the 3 titles you would test against each other, and one line on why.
+8. For each of those 3 titles, give 2 thumbnail ideas: the text, 4 words or fewer, and one line on what the picture shows. The text must add what the title holds back, such as the fear or the surprise, and must not use the title's main words. Rule 4 applies to these too.
+9. You can't know which pair wins, so don't claim it. My test decides.
+
+THE TITLES (x = times that channel's normal video)
+
+Why X, seen in 4 channels. The name is a guess from word rules, so correct it if you see better.
+- "Power Sector Is Booming, So Why Are REC & PFC Stocks Falling?" | 4.6x
+- "Indian Stock Market is down!! Why???" | 4.2x
+- "Why India's Tax System Is Broken" | 4.1x
+- "Why Two Incomes Are Making Indian Families Poorer" | 3.7x
+
+I did X, here is what happened, seen in 2 channels. The name is a guess from word rules, so correct it if you see better.
+- "I Spent 2 Weeks Talking to People Across 5 Salary Brackets - Here's What I Found" | 6.5x
+- "I researched about Credits Cards and Here is the Shocking TRUTH!" | 3.8x
+
+N things / mistakes, seen in 2 channels. The name is a guess from word rules, so correct it if you see better.
+- "Top 5 Things You Need to Know About the NSE IPO" | 5.9x
+- "5 STUPID mistakes WEALTHY people never make!" | 4.7x
+
+X vs Y, seen in 2 channels. The name is a guess from word rules, so correct it if you see better.
+- "National Pension System | NPS vs PPF vs MFs | Ultimate Guide" | 5.7x
+- "30,000 vs 3,00,000 vs 3,00,00,000 INR Per Month | The India You Didn't Know You Were A Part Of" | 4.4x
+
+Best X, seen in 1 channel. The name is a guess from word rules, so correct it if you see better.
+- "Best Health Insurance Plans 2026" | 4.6x
+
+I thought X, but Y, seen in 1 channel. The name is a guess from word rules, so correct it if you see better.
+- "I thought Rooftop Solar means 0 electricity bill.." | 4.4x
+
+Hard thing in N minutes, seen in 1 channel. The name is a guess from word rules, so correct it if you see better.
+- "File Salary ITR - 1 in 10 mins - 2026" | 4.0x
+
+No pattern guessed. Find one yourself if it is there, and ignore guest names.
+- "HE SLEEP ONLY 3 HOURS from Last 12 Years 🙏 दिनभर मज़दूरी और रात मे पढ़ाई | NEET KASHMIR Story" | 22.9x
+- "Class 11th Barbaad !! Fir Bhi Bana NEET 2023 TOPPER 🫡  AIR 59 - Vaibhav |  | Scored 710 Marks ⚡" | 18.5x
+- "AIR 1 in NDA from PhysicsWallah💪 ANURAG SANGWAN from Shaurya | " | 10.9x
+- "Bachhon Ke Liye KYA HAI?? Biggest OFFERS on All PW Batches & on Everything 🙏" | 9.2x
+- "Shunya Se Alakh Tak | 10 Million Special - Official Song by @PrateekkSahaaii" | 9.0x
+- "Jio Platforms Ltd. | Key Things You Need to Know" | 7.9x
+- "The Forever Financial Plan | Simple Financial Plan for 20 Years" | 6.4x
+- "How a Veteran Investor Built ₹62 Crore Without Gold or Real Estate | Gajendra Kothari" | 5.4x
+- "Sea-Facing Luxury Towers, Private Clubs & Crore-Worth Horses: South Bombay Unfiltered | Owais" | 4.5x
+- "The Ugly Truth Behind ₹15Cr Trading : Luck, Skill, Survival & Success | Ashwin Raghavan" | 4.5x
+- "Planning a ₹7L House at 22" | 4.1x
+- "21-Year-Old TRAPPED in ₹1 LAKH Monthly EMI!" | 4.1x

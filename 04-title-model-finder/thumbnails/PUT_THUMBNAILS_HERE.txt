@@ -1,0 +1,2 @@
+Put 2-3 versions of your thumbnail in this folder (PNG, JPG or WEBP). Run the tool, and each one gets checked against your title.
+Empty folder = no thumbnail check.
