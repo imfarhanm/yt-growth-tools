@@ -9,20 +9,20 @@ title Title Model Finder
 python --version >nul 2>nul
 if errorlevel 1 goto nopython
 
-python -c "import yt_dlp, PIL" >nul 2>nul
+python -c "import yt_dlp" >nul 2>nul
 if not errorlevel 1 goto ready
 echo First run: installing what the tool needs. This takes about a minute...
-python -m pip install --quiet --disable-pip-version-check yt-dlp pillow
+python -m pip install --quiet --disable-pip-version-check yt-dlp
 if errorlevel 1 goto nopip
 
 :ready
 set "HASTHUMB="
 for %%f in (thumbnails\*.png thumbnails\*.jpg thumbnails\*.jpeg thumbnails\*.webp) do set "HASTHUMB=1"
 if not defined HASTHUMB goto go
-python -c "import rapidocr_onnxruntime" >nul 2>nul
+python -c "import rapidocr_onnxruntime, PIL" >nul 2>nul
 if not errorlevel 1 goto go
 echo Thumbnails found: installing the text reader, once only. This takes 2-3 minutes...
-python -m pip install --quiet --disable-pip-version-check rapidocr-onnxruntime
+python -m pip install --quiet --disable-pip-version-check rapidocr-onnxruntime pillow
 if errorlevel 1 goto nopip
 
 :go

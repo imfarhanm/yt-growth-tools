@@ -2,9 +2,9 @@
 
 ![Title Model Finder running](demo.gif)
 
-Don't copy titles from your own niche. Type your niche, and this tool finds channels, shows which of their videos beat their own normal, and writes a title and thumbnail prompt for each video you make.
+Don't copy titles from your own niche. Type your niche, and this tool finds channels, shows which of their videos beat their own normal, and writes a title prompt and a thumbnail prompt for each video you make.
 
-Everything runs on your own PC, and it's free. No account and no cookies. A free Gemini key is optional.
+Everything runs on your own PC, and it's free. No account, no API key and no cookies.
 
 It does **not** predict views, score your title or pick a winning thumbnail. Nobody can know that before viewers see it.
 
@@ -24,8 +24,11 @@ It does **not** predict views, score your title or pick a winning thumbnail. Nob
 1. Double-click **RUN.bat**. The first run installs what it needs, which takes about a minute. A page opens in your browser. Keep the black window open while you use it.
 2. Choose English or Hinglish at the top. Type your niche, choose your videos' language, and click **Find channels**. This takes about a minute.
 3. Tick up to 10 channels in **Dream 10** and up to 10 in **Model 10**, then click **Save my lists**. The tool remembers them. It won't ask again unless you click **Change channels**.
-4. For each video, type its title and paste its description or SRT, or choose the file. Click **Make my prompt**.
-5. Copy the prompt into any AI chat, such as ChatGPT, Claude or Gemini. You get titles, thumbnail text and image prompts for that video. The prompt is also saved in the `prompts` folder, under your video's title.
+4. For each video, type its title and paste its description or SRT, or choose the file. Click **Make my prompts**.
+5. You get two prompts for that video. Copy each into any AI chat, such as ChatGPT, Claude or Gemini. Both are also saved in the `prompts` folder, under your video's title.
+   - **Title prompt:** gives you titles based on your channels' outliers.
+   - **Thumbnail prompt:** gives you thumbnail text and an image prompt to paste into an image tool.
+6. Once you pick a title, put it in the title box and make the prompts again, so the thumbnail matches that title.
 
 ## Which channels to tick
 
@@ -34,22 +37,9 @@ It does **not** predict views, score your title or pick a winning thumbnail. Nob
 
 The list comes from real YouTube search, so read the sample titles and untick anything off-topic. To add a channel the search missed, put its link in the box under the lists.
 
-## Thumbnails, all free
+## Check thumbnails you already have
 
-- **Draw it on your PC:** type the thumbnail text and click **Draw**. You get big plain letters as a 1280x720 JPG in `thumbnails_made`. Use roman letters, because this can't write Devanagari correctly.
-- **Use a free image tool:** paste the image prompt from your AI chat into [gemini.google.com](https://gemini.google.com) or another image tool.
-- **Check thumbnails you already have:** put them in the `thumbnails` folder and run RUN.bat again, then click **Check them with this title**.
-
-## Optional: a free Gemini key
-
-With a key, the page can write titles itself instead of you pasting the prompt, and it can look for more channels if search finds too few.
-
-1. Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
-2. Paste it under **Optional: free Gemini key**. It stays in `gemini_key.txt` on your PC.
-
-Two things to know:
-- Google's free tier often allows no image generation, so **Try Gemini image** may only give you a limit message. Use the other thumbnail options then.
-- If your Google project has billing on, Google can charge for what you use. For a free key, keep billing off.
+Put them in the `thumbnails` folder and run RUN.bat again, because the first time it installs a text reader, which takes 2-3 minutes. Then type your title and click **Check them with this title**.
 
 ## What you get
 
@@ -152,8 +142,6 @@ These numbers are from 6 November 2026. Your run will differ, because views keep
 | `Setup failed` | Check your internet connection and run RUN.bat again. |
 | The page didn't open | Copy the link shown in the black window into your browser. |
 | `Fewer than 10 usable channels` | Write a wider niche, or add channels yourself in the box under the lists. |
-| `Google refused this key` | Check the key at aistudio.google.com/apikey. |
-| `Google's free limit said no` | Your key has no quota for this, or you need to wait. Paste the prompt into a chat instead. |
 | `channel not found, check the handle` | Open the channel on YouTube and copy its link from the address bar into the box under the lists. |
 | `this channel has no Videos tab` | The channel has only Shorts or live streams, or the handle belongs to a different channel. Use another channel or check the link. |
 | `Skipped, not a channel link` | That line is a video or a playlist. Open the channel page and copy that link. |

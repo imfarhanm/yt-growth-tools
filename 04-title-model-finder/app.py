@@ -4,9 +4,9 @@
     pip install yt-dlp pillow
     python app.py
 
-It runs on your own PC at 127.0.0.1. A free Gemini key is optional. Without one, everything except the Gemini buttons still works.
+It runs on your own PC at 127.0.0.1. No key, no account, nothing paid.
 """
-import base64, collections, concurrent.futures, io, json, os, re, secrets, sys, threading, time, urllib.error, urllib.parse, urllib.request, webbrowser
+import collections, concurrent.futures, json, os, re, secrets, sys, threading, time, urllib.parse, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -14,11 +14,8 @@ import title_model_finder as tmf
 
 HERE = Path(__file__).resolve().parent
 SETUP = HERE / "my_channels.json"
-KEY_FILE = HERE / "gemini_key.txt"
 PROMPTS = HERE / "prompts"
-MADE = HERE / "thumbnails_made"
 TOKEN = secrets.token_urlsafe(24)
-GEMINI = os.environ.get("TMF_GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta")
 
 PER_LIST, TRY_PER_LIST = 10, 18      # ticked at most, and channels checked for each list
 MIN_MEDIAN = 1000                    # below this a channel's outliers are mostly noise
@@ -37,16 +34,8 @@ CANDIDATES = {}
 LOCK = threading.Lock()
 
 
-def word(lang, en, hi):
-    return hi if lang == "hi" else en
-
-
 def load_setup():
     return json.loads(SETUP.read_text(encoding="utf-8")) if SETUP.exists() else None
-
-
-def gemini_key():
-    return KEY_FILE.read_text(encoding="utf-8").strip() if KEY_FILE.exists() else ""
 
 
 # ---------- finding channels
@@ -109,20 +98,6 @@ def describe(url, hits, words, lang, min_median=MIN_MEDIAN):
             "best_x": channel["outliers"][0]["times"], "best": [{"title": v["clean"], "times": v["times"], "id": v["id"]} for v in channel["outliers"][:3]]}
 
 
-def ai_suggest(niche, lang, need):
-    """Only when search found too few: Gemini names channels, and each one must still pass the same real check."""
-    key = gemini_key()
-    if not key:
-        return []
-    ask = (f'List YouTube channels with their exact @handles as JSON: {{"handles": ["@..."]}}. {need}: niche "{niche}", language {"Hindi" if lang == "hi" else "English"}. '
-           "Give 15. Only channels you are sure exist.")
-    try:
-        names = json.loads(_json_text(gemini_text(ask, key))).get("handles") or []
-    except (RuntimeError, ValueError, AttributeError):
-        return []
-    return [f"https://www.youtube.com/@{str(n).strip().lstrip('@')}/videos" for n in names if re.fullmatch(r"@?[\w.\-]{3,40}", str(n).strip())]
-
-
 def find_channels(niche, lang):
     words = niche_words(niche)
     set_job("search", 5)
@@ -145,11 +120,7 @@ def find_channels(niche, lang):
         return out
 
     dream = check(dream_hits.most_common(TRY_PER_LIST), "dream", 35, 28)
-    if len(dream) < PER_LIST:
-        dream += check([(u, 0) for u in ai_suggest(niche, lang, "Channels about this niche") if u not in dream_hits], "dream", 63, 5)
     model = check(model_hits.most_common(TRY_PER_LIST + 8), "model", 68, 27, MODEL_MEDIAN)
-    if len(model) < PER_LIST:
-        model += check([(u, 0) for u in ai_suggest(niche, lang, "Popular channels on OTHER topics with a similar video style, not about this niche") if u not in model_hits and u not in dream_hits], "model", 95, 3, MODEL_MEDIAN)
     seen = {c["url"] for c in dream}
     model = [c for c in model if c["url"] not in seen]
     dream.sort(key=lambda c: (-(c["on_topic"] >= 10), -c["hits"], -c["on_topic"]))
@@ -238,144 +209,39 @@ def outlier_lines(rows, count=25):
     return [f'- "{r["title"]}" | {r["times"]}x' for r in sorted(rows, key=lambda r: -r["times"])[:count]]
 
 
-def build_prompt(setup, title, text, reply_json=False):
+def title_prompt(setup, title, text):
     lang = setup["lang"]; body = clean_text(text)
-    lines = ["Help me title one YouTube video, and write its thumbnail.", "",
-             f"MY CHANNEL'S NICHE: {setup['niche']}",
-             f"MY WORKING TITLE: {title}", "",
-             "WHAT THE VIDEO REALLY SAYS (its description or subtitles):",
-             body or "[Nothing given. Ask me what the video shows before you write anything.]", "",
-             "HOW TO WORK",
-             "1. Read what the video says. Every title and thumbnail must be true of THIS video, and it must really pay it off. Use a number, result or story only if the text above has it.",
-             "2. Some real titles below won on their topic or on news, such as an IPO, a crash, a sale or a song. Skip those, they teach nothing about titles.",
-             "3. Find what the rest promise the viewer, and keep the 3 promises that fit this video. A promise seen on several channels counts for more, but one that doesn't fit is out. Say each in one plain line, with no words from the original titles.",
-             "4. Write 3 titles on each, as a creator would say them to a friend. Throw out a title if it is a real title with the nouns swapped, makes no sense for this video, or makes two promises. My working title can stay in the running.",
-             f"5. Language of titles and thumbnail text: {LANG_RULE[lang]}",
-             "6. Keep titles short, about 45-55 characters. Don't print character counts.",
-             "7. Choose the 3 titles most worth testing against each other, each making a different promise, with one line on why.",
-             "8. For each of those, give 2 thumbnails: the text, 4 words or fewer, and an image prompt I can paste into an image tool. The text adds what the title holds back, such as the fear or the surprise, and doesn't use the title's main words. Example: title \"Why Your Bread Won't Rise\", thumbnail text \"Dead Yeast?\". The image prompt asks for a 16:9 YouTube thumbnail, one clear subject and this exact text in big letters.",
-             "9. Do not predict views or say which pair will win. My test decides.", ""]
-    if reply_json:
-        lines += ['Return ONLY JSON: {"titles": ["9 titles"], "test": [{"title": "...", "why": "...", "thumbs": [{"text": "...", "image_prompt": "..."}, {"text": "...", "image_prompt": "..."}]}]}', ""]
-    lines += ["REAL TITLES FROM MY OWN TOPIC (x = times that channel's normal video):", *outlier_lines(setup["outliers"]["dream"]), "",
-              "REAL TITLES FROM OTHER TOPICS (only the pattern can move over):", *outlier_lines(setup["outliers"]["model"])]
-    return "\n".join(lines) + "\n"
+    return "\n".join(["Help me title one YouTube video.", "",
+        f"MY CHANNEL'S NICHE: {setup['niche']}",
+        f"MY WORKING TITLE: {title}", "",
+        "WHAT THE VIDEO REALLY SAYS (its description or subtitles):",
+        body or "[Nothing given. Ask me what the video shows before you write anything.]", "",
+        "HOW TO WORK",
+        "1. Read what the video says. Every title must be true of THIS video, and it must really pay it off. Use a number, result or story only if the text above has it.",
+        "2. Some real titles below won on their topic or on news, such as an IPO, a crash, a sale or a song. Skip those, they teach nothing about titles.",
+        "3. Find what the rest promise the viewer, and keep the 3 promises that fit this video. A promise seen on several channels counts for more, but one that doesn't fit is out. Say each in one plain line, with no words from the original titles.",
+        "4. Write 3 titles on each, as a creator would say them to a friend. Throw out a title if it is a real title with the nouns swapped, makes no sense for this video, or makes two promises. My working title can stay in the running.",
+        f"5. Language of the titles: {LANG_RULE[lang]}",
+        "6. Keep titles short, about 45-55 characters. Don't print character counts.",
+        "7. Do not predict views. End with the 3 titles most worth testing against each other, each making a different promise, with one line on why.", "",
+        "REAL TITLES FROM MY OWN TOPIC (x = times that channel's normal video):", *outlier_lines(setup["outliers"]["dream"]), "",
+        "REAL TITLES FROM OTHER TOPICS (only the pattern can move over):", *outlier_lines(setup["outliers"]["model"])]) + "\n"
 
 
-# ---------- Gemini, optional and free unless the key's project has billing on
-
-def gemini_call(path, key, body=None):
-    req = urllib.request.Request(f"{GEMINI}/{path}", data=json.dumps(body).encode("utf-8") if body is not None else None,
-                                 headers={"x-goog-api-key": key, "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return json.loads(r.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:300]
-        raise RuntimeError("key" if e.code in (400, 401, 403) and re.search(r"api.?key|permission|PERMISSION", detail, re.I) else "limit" if e.code == 429 else f"Gemini {e.code}: {detail[:160]}")
-    except (urllib.error.URLError, TimeoutError):
-        raise RuntimeError("net")
-
-
-def pick_model(key, image):
-    """Asks Google which models this key has today, because the names keep changing."""
-    rows = gemini_call("models?pageSize=200", key).get("models") or []
-    def fits(m):
-        name = m.get("name", "").lower()
-        if "generateContent" not in (m.get("supportedGenerationMethods") or []) or "flash" not in name:
-            return False
-        return "image" in name if image else not re.search(r"image|tts|audio|live|embedding|robotics|thinking", name)
-    names = sorted((m["name"].split("/")[-1] for m in rows if fits(m)), key=lambda n: ("preview" in n or "exp" in n, "lite" in n, "latest" not in n, n))
-    if not names:
-        raise RuntimeError("no_image" if image else "no_model")
-    return names[0]
-
-
-def gemini_text(prompt, key):
-    reply = gemini_call(f"models/{pick_model(key, False)}:generateContent", key, {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}})
-    try:
-        return "".join(p.get("text", "") for p in reply["candidates"][0]["content"]["parts"])
-    except (KeyError, IndexError):
-        raise RuntimeError("empty")
-
-
-def gemini_image(prompt, key):
-    reply = gemini_call(f"models/{pick_model(key, True)}:generateContent", key, {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseModalities": ["IMAGE"]}})
-    for part in ((reply.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []:
-        data = part.get("inlineData") or part.get("inline_data")
-        if data:
-            return base64.b64decode(data["data"])
-    raise RuntimeError("empty")
-
-
-def _json_text(text):
-    m = re.search(r"\{.*\}", text, re.S)
-    if not m:
-        raise ValueError("no JSON")
-    return m.group(0)
-
-
-def ask_gemini(setup, title, text):
-    data = json.loads(_json_text(gemini_text(build_prompt(setup, title, text, True), gemini_key())))
-    test = []
-    for row in data.get("test") or []:
-        name = str(row.get("title") or "").strip()
-        if name:
-            test.append({"title": name, "why": str(row.get("why") or ""), "notes": tmf.title_lines(tmf.check_title(name))[1:3],
-                         "thumbs": [dict(pair_facts(name, str(t.get("text") or "")), image_prompt=str(t.get("image_prompt") or "")) for t in row.get("thumbs") or [] if isinstance(t, dict)]})
-    return {"test": test, "titles": [str(t) for t in data.get("titles") or []]}
-
-
-# ---------- thumbnails
-
-def pair_facts(title, text):
-    """Which thumbnail words the title already says. Facts only."""
-    in_title = set(tmf.words_of(title)); said = list(dict.fromkeys(tmf.words_of(text)))
-    return {"text": text, "repeats": [w for w in said if w in in_title], "new": [w for w in said if w not in in_title]}
-
-
-def next_file(title, ext):
-    MADE.mkdir(exist_ok=True); base = safe_name(title)
-    for n in range(1, 1000):
-        path = MADE / f"{base} {n}{ext}"
-        if not path.exists():
-            return path
-    raise RuntimeError("too many files")
-
-
-def font_for(size):
-    from PIL import ImageFont
-    for name in ("C:/Windows/Fonts/impact.ttf", "C:/Windows/Fonts/arialbd.ttf"):
-        if Path(name).exists():
-            return ImageFont.truetype(name, size)
-    return ImageFont.load_default(size)
-
-
-def draw_thumb(title, text, palette):
-    """Big plain letters, drawn on this PC. Always free. Devanagari needs an image tool, because plain Pillow breaks its letters."""
-    from PIL import Image, ImageDraw, ImageFilter
-    if tmf.DEVANAGARI.search(text):
-        raise ValueError("devanagari")
-    words = text.upper().split()
-    if not words:
-        raise ValueError("empty")
-    page, glow, ink, hot = {"red": ("#0f0f0f", "#6b1414", "#ffffff", "#ffd21f"), "blue": ("#071226", "#123a7a", "#ffffff", "#ffe14d"), "green": ("#06140d", "#0e5a33", "#ffffff", "#fff04d"), "purple": ("#120a22", "#47207f", "#ffffff", "#5ff2d0")}.get(palette, ("#0f0f0f", "#6b1414", "#ffffff", "#ffd21f"))
-    W, H = 1280, 720
-    back = Image.new("RGB", (W, H), page); layer = Image.new("RGB", (W, H), page)
-    ImageDraw.Draw(layer).ellipse((180, 130, 1100, 700), fill=glow)
-    im = Image.blend(back, layer.filter(ImageFilter.GaussianBlur(120)), .9); d = ImageDraw.Draw(im)
-    rows = min(3, max(1, (len(words) + 1) // 2)); lines = [words[i * len(words) // rows:(i + 1) * len(words) // rows] for i in range(rows)]
-    size = int(H * .8 / rows)
-    while size > 40 and max(d.textlength(" ".join(l), font=font_for(size)) for l in lines) > W - 120:
-        size -= 6
-    font = font_for(size); gap = H * .86 / rows
-    for i, line in enumerate(lines):
-        y = H * .07 + gap * (i + .5); x = (W - d.textlength(" ".join(line), font=font)) / 2
-        for j, w in enumerate(line):
-            d.text((x, y), w, font=font, fill=hot if i == rows - 1 else ink, stroke_width=max(6, size // 18), stroke_fill="#000", anchor="lm")
-            x += d.textlength(w + " ", font=font)
-    path = next_file(title, ".jpg"); im.save(path, "JPEG", quality=92)
-    return path
+def thumbnail_prompt(setup, title, text):
+    lang = setup["lang"]; body = clean_text(text)
+    return "\n".join(["Help me make the thumbnail for one YouTube video.", "",
+        f"MY CHANNEL'S NICHE: {setup['niche']}",
+        f"THE VIDEO'S TITLE: {title}", "",
+        "WHAT THE VIDEO REALLY SAYS (its description or subtitles):",
+        body or "[Nothing given. Ask me what the video shows before you write anything.]", "",
+        "HOW TO WORK",
+        "1. The thumbnail and the title work as a pair. The thumbnail adds what the title holds back, such as the fear or the surprise. Don't use the title's main words. Example: title \"Why Your Bread Won't Rise\", thumbnail text \"Dead Yeast?\".",
+        "2. Give 3 thumbnail ideas that differ from each other. Each one must be true of THIS video. Use a number or result only if the text above has it.",
+        f"3. Thumbnail text: 4 words or fewer. Language: {LANG_RULE[lang]}",
+        "4. For each idea, give the text, one line on why a viewer would click, and a full image prompt I can paste into an image tool.",
+        "5. Each image prompt asks for a 16:9 YouTube thumbnail, 1280x720, with one clear subject, strong contrast, and this exact text in big letters, readable at small size. Describe the subject, its expression or action, the background and the colours. Write the text in quotes.",
+        "6. Do not predict views or say which will win. My test decides.", ""]) + "\n"
 
 
 # ---------- the local server
@@ -401,12 +267,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/":
             return self.send(PAGE.replace("__TOKEN__", TOKEN), "text/html; charset=utf-8")
         if u.path == "/api/state":
-            return self.send({"setup": load_setup(), "has_key": bool(gemini_key()), "job": JOB})
-        if u.path == "/file":
-            path = MADE / Path((q.get("name") or [""])[0]).name
-            if path.is_file():
-                return self.send(path.read_bytes(), "image/png" if path.suffix == ".png" else "image/jpeg")
-            return self.send({"error": "missing"}, code=404)
+            return self.send({"setup": load_setup(), "job": JOB})
         self.send({"error": "not found"}, code=404)
 
     def do_POST(self):
@@ -442,26 +303,18 @@ class Handler(BaseHTTPRequestHandler):
             return {"ok": start_job(lambda: save_lists(s["lang"], s["niche"], [c["url"] for c in s["dream"]], [c["url"] for c in s["model"]]))}
         if path == "/api/forget":
             SETUP.unlink(missing_ok=True); return {"ok": True}
-        if path == "/api/key":
-            key = str(a.get("key") or "").strip()
-            if key:
-                KEY_FILE.write_text(key, encoding="utf-8")
-            else:
-                KEY_FILE.unlink(missing_ok=True)
-            return {"has_key": bool(key)}
         s = load_setup(); title = " ".join(str(a.get("title") or "").split())
-        if path in ("/api/prompt", "/api/ask") and not s:
+        if path == "/api/prompt" and not s:
             raise ValueError("setup")
         if path == "/api/prompt":
             if not title:
                 raise ValueError("title")
-            text = build_prompt(s, title, a.get("text")); PROMPTS.mkdir(exist_ok=True)
-            file = PROMPTS / f"{safe_name(title)}.txt"; file.write_text(text, encoding="utf-8")
-            return {"prompt": text, "file": str(file), "name": file.name}
-        if path == "/api/ask":
-            if not title:
-                raise ValueError("title")
-            return ask_gemini(s, title, a.get("text"))
+            PROMPTS.mkdir(exist_ok=True); out = {}
+            for kind, build, label in (("title", title_prompt, "Title Prompt"), ("thumb", thumbnail_prompt, "Thumbnail Prompt")):
+                text = build(s, title, a.get("text")); file = PROMPTS / f"{safe_name(title)} - {label}.txt"
+                file.write_text(text, encoding="utf-8"); out[kind] = {"prompt": text, "name": file.name}
+            out["folder"] = str(PROMPTS)
+            return out
         if path == "/api/check":
             pictures = tmf.thumb_files([str(HERE / "thumbnails")])[:tmf.MAX_THUMBS]
             if not pictures:
@@ -476,15 +329,6 @@ class Handler(BaseHTTPRequestHandler):
                 if not thumb.get("error"):
                     c = tmf.check_combo(title, thumb); out.append({"picture": c["picture"], "lines": tmf.combo_lines(c)})
             return {"checks": out}
-        if path == "/api/draw":
-            f = draw_thumb(title or "thumbnail", str(a.get("text") or ""), a.get("palette"))
-            return {"file": f.name, "facts": pair_facts(title, str(a.get("text") or ""))}
-        if path == "/api/image":
-            key = gemini_key()
-            if not key:
-                raise ValueError("nokey")
-            f = next_file(title or "thumbnail", ".png"); f.write_bytes(gemini_image(str(a.get("prompt") or ""), key))
-            return {"file": f.name}
         raise ValueError("unknown")
 
 
@@ -504,17 +348,17 @@ pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);borde
 </style></head><body><main><div class="top"><h1>Title Model Finder</h1><select id="ui" style="width:auto" onchange="setUi(this.value)"><option value="en">English</option><option value="hi">Hinglish</option></select></div><div id="app"></div></main>
 <script>
 const T="__TOKEN__",$=i=>document.getElementById(i),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const W={en:{s1:"1. Your channels",niche:"Your channel's niche",nicheHint:"For example: home cooking, YouTube growth, stock market basics. The tool searches YouTube itself.",lang:"Language of your videos",find:"Find channels",dream:"Dream 10: your own topic",model:"Model 10: other topics, patterns to borrow",pick:"Ticked",add:"Add your own (one link or @handle per line, goes to Model 10)",save:"Save my lists",few:"Fewer than 10 usable channels in a list. Add your own below, or try a wider niche.",back:"Keep my old lists",checkFolder:"Already have thumbnails?",checkHint:"Put them in the thumbnails folder next to this tool. The first time, close this window and run RUN.bat again so it can install the text reader.",checkBtn:"Check them with this title",normal:"normal video",ontopic:"titles on your topic",search:"Searching YouTube",check:"Checking channels",ds:"Reading Dream channels",ms:"Reading Model channels",start:"Starting",saved:"Your lists",change:"Change channels",refresh:"Refresh views",dataFrom:"Data from",s2:"2. Your video",title:"Video title",text:"Description or SRT (what the video really says)",textHint:"The prompt is written for this. Paste it here, or choose a file.",make:"Make my prompt",copy:"Copy prompt",copied:"Copied",savedAs:"Saved as",paste:"Paste this into any AI chat. It gives you titles, thumbnail text and image prompts.",s3:"3. Thumbnail, free",draw:"Draw thumbnail text on this PC",thumbText:"Thumbnail text",colour:"Colour",repeat:"Repeats the title",noRepeat:"Doesn't repeat the title",newWords:"New words",s4:"Optional: free Gemini key",keyHint:"Only if you want the page itself to write titles. Get it free at aistudio.google.com/apikey. It stays in gemini_key.txt on this PC.",keySave:"Save key",keyDel:"Remove key",keyOn:"Key saved",ask:"Get titles from Gemini",image:"Try Gemini image",imgWarn:"Google's free tier often allows no images. If your Google project has billing on, this can cost money.",noWin:"The tool never says which will win. Put your best 2-3 in YouTube's Test & Compare.",why:"Why",more:"More titles",use:"Use text",e:{niche:"Type your niche first.",title:"Type the video title first.",pick:"Tick at least one channel.",setup:"Save your channels first.",nokey:"Save a Gemini key first.",key:"Google refused this key. Check it at aistudio.google.com/apikey.",limit:"Google's free limit said no. Your key may have no image quota, or you have to wait. Use Draw thumbnail, or paste the image prompt into gemini.google.com.",net:"Could not reach Google. Check your internet.",no_image:"This key has no Gemini image model. Use Draw thumbnail, or paste the image prompt into gemini.google.com.",no_model:"This key has no text model.",empty:"Gemini returned nothing. Try again.",yt:"YouTube did not answer. Check your internet, or update the reader: python -m pip install -U yt-dlp",none:"No channel could be read. Check your internet, or update the reader: python -m pip install -U yt-dlp",devanagari:"Drawing here can't write Devanagari correctly. Use roman letters, or an image tool.",empty_text:"Type the thumbnail text first.",no_thumbs:"The thumbnails folder has no pictures.",no_reader:"The text reader isn't installed. Close this window and run RUN.bat again."}},
-hi:{s1:"1. Aapke channels",niche:"Aapke channel ka niche",nicheHint:"Jaise: home cooking, YouTube growth, share market basics. Tool khud YouTube par dhoondhega.",lang:"Videos ki bhasha",find:"Channels dhoondho",dream:"Dream 10: aapka hi topic",model:"Model 10: doosre topic, pattern seekhne ke liye",pick:"Tick kiye",add:"Apne channel jodo (har line mein ek link ya @handle, Model 10 mein jayenge)",save:"Meri list save karo",few:"Ek list mein 10 se kam kaam ke channels mile. Neeche apne jodo, ya niche thoda chauda likho.",back:"Purani list hi rakho",checkFolder:"Thumbnail pehle se hai?",checkHint:"Tool ke paas wale thumbnails folder mein daalo. Pehli baar ye window band karke RUN.bat dobara chalao, taaki text reader install ho jaye.",checkBtn:"Is title ke saath check karo",normal:"normal video",ontopic:"titles aapke topic par",search:"YouTube par dhoondh rahe hain",check:"Channels check ho rahe hain",ds:"Dream channels padh rahe hain",ms:"Model channels padh rahe hain",start:"Shuru",saved:"Aapki list",change:"Channels badlo",refresh:"Views refresh karo",dataFrom:"Data ki date",s2:"2. Aapka video",title:"Video ka title",text:"Description ya SRT (video mein asal mein kya hai)",textHint:"Prompt isi ke hisaab se banega. Yahan paste karo, ya file chuno.",make:"Mera prompt banao",copy:"Prompt copy karo",copied:"Copy ho gaya",savedAs:"Save hua",paste:"Ise kisi bhi AI chat mein paste karo. Title, thumbnail text aur image prompt mil jayenge.",s3:"3. Thumbnail, free",draw:"Thumbnail text isi PC par banao",thumbText:"Thumbnail ka text",colour:"Rang",repeat:"Title repeat karta hai",noRepeat:"Title repeat nahi karta",newWords:"Naye shabd",s4:"Agar chaho: free Gemini key",keyHint:"Sirf tab jab page khud title likhe. Free key aistudio.google.com/apikey par milegi. Ye isi PC par gemini_key.txt mein rehti hai.",keySave:"Key save karo",keyDel:"Key hatao",keyOn:"Key save hai",ask:"Gemini se titles lo",image:"Gemini image try karo",imgWarn:"Google ka free tier aksar image nahi deta. Aapke Google project par billing on hai to paise lag sakte hain.",noWin:"Tool kabhi nahi batata kaun jeetega. Best 2-3 ko YouTube ke Test & Compare mein daalo.",why:"Kyun",more:"Aur titles",use:"Text lo",e:{niche:"Pehle apna niche likho.",title:"Pehle video ka title likho.",pick:"Kam se kam ek channel tick karo.",setup:"Pehle channels save karo.",nokey:"Pehle Gemini key save karo.",key:"Google ne ye key nahi maani. aistudio.google.com/apikey par check karo.",limit:"Google ki free limit ne mana kiya. Key par image quota nahi hoga, ya thoda rukna padega. Draw thumbnail use karo, ya image prompt gemini.google.com par paste karo.",net:"Google tak nahi pahunch paye. Internet check karo.",no_image:"Is key par Gemini image model nahi hai. Draw thumbnail use karo, ya image prompt gemini.google.com par paste karo.",no_model:"Is key par text model nahi hai.",empty:"Gemini ne kuch nahi diya. Dobara try karo.",yt:"YouTube ne jawab nahi diya. Internet check karo, ya reader update karo: python -m pip install -U yt-dlp",none:"Koi channel nahi padha gaya. Internet check karo, ya reader update karo: python -m pip install -U yt-dlp",devanagari:"Yahan Devanagari sahi nahi banti. Roman likho, ya image tool use karo.",empty_text:"Pehle thumbnail ka text likho.",no_thumbs:"Thumbnails folder mein koi picture nahi hai.",no_reader:"Text reader install nahi hai. Ye window band karke RUN.bat dobara chalao."}}};
-let S={},ui="en",view="",found=null,last={},ideas=null,made=[],checks=[];try{ui=localStorage.getItem("tmf_ui")||"en"}catch(e){}
+const W={en:{s1:"1. Your channels",niche:"Your channel's niche",nicheHint:"For example: home cooking, YouTube growth, stock market basics. The tool searches YouTube itself.",lang:"Language of your videos",find:"Find channels",dream:"Dream 10: your own topic",model:"Model 10: other topics, patterns to borrow",pick:"Ticked",add:"Add your own (one link or @handle per line, goes to Model 10)",save:"Save my lists",few:"Fewer than 10 usable channels in a list. Add your own below, or try a wider niche.",back:"Keep my old lists",checkFolder:"Already have thumbnails?",checkHint:"Put them in the thumbnails folder next to this tool. The first time, close this window and run RUN.bat again so it can install the text reader.",checkBtn:"Check them with this title",normal:"normal video",ontopic:"titles on your topic",search:"Searching YouTube",check:"Checking channels",ds:"Reading Dream channels",ms:"Reading Model channels",start:"Starting",saved:"Your lists",change:"Change channels",refresh:"Refresh views",dataFrom:"Data from",s2:"2. Your video",make:"Make my prompts",pt:"Title prompt",pth:"Thumbnail prompt",copy:"Copy",copied:"Copied",paste:"Paste each one into any AI chat. Once you pick a title, put it in the title box and make the prompts again, so the thumbnail matches it.",savedIn:"Saved in",s3:"3. Check your thumbnails",title:"Video title",text:"Description or SRT (what the video really says)",textHint:"The prompt is written for this. Paste it here, or choose a file.",noWin:"The tool never says which will win. Put your best 2-3 in YouTube's Test & Compare.",e:{niche:"Type your niche first.",title:"Type the video title first.",pick:"Tick at least one channel.",setup:"Save your channels first.",yt:"YouTube did not answer. Check your internet, or update the reader: python -m pip install -U yt-dlp",none:"No channel could be read. Check your internet, or update the reader: python -m pip install -U yt-dlp",no_thumbs:"The thumbnails folder has no pictures.",no_reader:"The text reader isn't installed. Close this window and run RUN.bat again."}},
+hi:{s1:"1. Aapke channels",niche:"Aapke channel ka niche",nicheHint:"Jaise: home cooking, YouTube growth, share market basics. Tool khud YouTube par dhoondhega.",lang:"Videos ki bhasha",find:"Channels dhoondho",dream:"Dream 10: aapka hi topic",model:"Model 10: doosre topic, pattern seekhne ke liye",pick:"Tick kiye",add:"Apne channel jodo (har line mein ek link ya @handle, Model 10 mein jayenge)",save:"Meri list save karo",few:"Ek list mein 10 se kam kaam ke channels mile. Neeche apne jodo, ya niche thoda chauda likho.",back:"Purani list hi rakho",checkFolder:"Thumbnail pehle se hai?",checkHint:"Tool ke paas wale thumbnails folder mein daalo. Pehli baar ye window band karke RUN.bat dobara chalao, taaki text reader install ho jaye.",checkBtn:"Is title ke saath check karo",normal:"normal video",ontopic:"titles aapke topic par",search:"YouTube par dhoondh rahe hain",check:"Channels check ho rahe hain",ds:"Dream channels padh rahe hain",ms:"Model channels padh rahe hain",start:"Shuru",saved:"Aapki list",change:"Channels badlo",refresh:"Views refresh karo",dataFrom:"Data ki date",s2:"2. Aapka video",make:"Mere prompt banao",pt:"Title prompt",pth:"Thumbnail prompt",copy:"Copy",copied:"Copy ho gaya",paste:"Dono ko kisi bhi AI chat mein paste karo. Title chun lo to use title box mein daal kar prompt dobara banao, taaki thumbnail usi se mile.",savedIn:"Save hua",s3:"3. Thumbnail check karo",title:"Video ka title",text:"Description ya SRT (video mein asal mein kya hai)",textHint:"Prompt isi ke hisaab se banega. Yahan paste karo, ya file chuno.",noWin:"Tool kabhi nahi batata kaun jeetega. Best 2-3 ko YouTube ke Test & Compare mein daalo.",e:{niche:"Pehle apna niche likho.",title:"Pehle video ka title likho.",pick:"Kam se kam ek channel tick karo.",setup:"Pehle channels save karo.",yt:"YouTube ne jawab nahi diya. Internet check karo, ya reader update karo: python -m pip install -U yt-dlp",none:"Koi channel nahi padha gaya. Internet check karo, ya reader update karo: python -m pip install -U yt-dlp",no_thumbs:"Thumbnails folder mein koi picture nahi hai.",no_reader:"Text reader install nahi hai. Ye window band karke RUN.bat dobara chalao."}}};
+let S={},ui="en",view="",found=null,last={},checks=[];try{ui=localStorage.getItem("tmf_ui")||"en"}catch(e){}
 const t=k=>W[ui][k]??k,er=k=>W[ui].e[k]||k;
 async function call(p,b){const r=await fetch(p,{method:"POST",headers:{"Content-Type":"application/json","X-Token":T},body:JSON.stringify(b||{})});return r.json()}
 async function load(){const r=await fetch("/api/state?t="+T);S=await r.json();render()}
 function setUi(v){ui=v;try{localStorage.setItem("tmf_ui",v)}catch(e){}render()}
-function keep(){for(const k of["title","text","niche","thumbText"]){const e=$(k);if(e)last[k]=e.value}}
+function keep(){for(const k of["title","text","niche"]){const e=$(k);if(e)last[k]=e.value}}
 function render(){keep();$("ui").value=ui;const J=S.job||{};let h="";if(J.running)h+=progress(J);
  else if(!S.setup||view==="setup")h+=setupCard();else h+=listCard()+videoCard();
- h+=keyCard();$("app").innerHTML=h;for(const k in last){const e=$(k);if(e&&last[k]!==undefined)e.value=last[k]}}
+ $("app").innerHTML=h;for(const k in last){const e=$(k);if(e&&last[k]!==undefined)e.value=last[k]}}
 function progress(J){const n={search:t("search"),check:t("check"),dream:t("ds"),model:t("ms"),start:t("start")}[J.step]||"";return `<div class="card"><b>${esc(n)}…</b> ${J.pct}%<div class="bar"><i style="width:${J.pct}%"></i></div></div>`}
 function setupCard(){const l=(S.setup&&S.setup.lang)||last.lang||(ui==="hi"?"hi":"en");let h=`<div class="card"><h2>${t("s1")}</h2><label>${t("niche")}</label><input type="text" id="niche" value="${esc(last.niche??(S.setup?S.setup.niche:""))}"><div class="soft small">${t("nicheHint")}</div>
  <label>${t("lang")}</label><select id="vlang" style="width:auto"><option value="en" ${l==="en"?"selected":""}>English</option><option value="hi" ${l==="hi"?"selected":""}>Hindi / Hinglish</option></select>
@@ -526,27 +370,19 @@ function setupCard(){const l=(S.setup&&S.setup.lang)||last.lang||(ui==="hi"?"hi"
 function count(){for(const k of["dream","model"]){const b=[...document.querySelectorAll(".c_"+k)],n=b.filter(x=>x.checked).length;const e=$("n_"+k);if(e)e.textContent=`${t("pick")}: ${n}/10`;b.forEach(x=>{x.disabled=!x.checked&&n>=10;x.closest(".ch").classList.toggle("off",!x.checked)})}}
 function listCard(){const s=S.setup,names=l=>l.map(c=>esc(c.name)).join(", ");return `<div class="card"><h2>${t("saved")}: ${esc(s.niche)}</h2><div class="small"><b>Dream ${s.dream.length}:</b> ${names(s.dream)}</div><div class="small" style="margin-top:4px"><b>Model ${s.model.length}:</b> ${names(s.model)}</div><div class="soft small" style="margin-top:6px">${t("dataFrom")}: ${esc(s.scanned)}</div>
  <div class="row"><button class="ghost" onclick="view='setup';found=null;render()">${t("change")}</button><button class="ghost" onclick="refreshData()">${t("refresh")}</button></div></div>`}
-function videoCard(){const p=S.promptDone;let h=`<div class="card"><h2>${t("s2")}</h2><label>${t("title")}</label><input type="text" id="title"><label>${t("text")}</label><textarea id="text"></textarea><div class="soft small">${t("textHint")}</div><input type="file" accept=".srt,.vtt,.txt" onchange="readFile(this)" style="margin-top:6px">
- <div class="row"><button onclick="makePrompt()">${t("make")}</button>${S.has_key?`<button class="ghost" onclick="askAi()">${t("ask")}</button>`:""}<span class="err" id="msg3"></span></div>
- ${p?`<p class="small">${t("savedAs")}: <b>${esc(p.file)}</b><br><span class="soft">${t("paste")}</span></p><div class="row" style="margin:6px 0"><button onclick="copyP()" id="cp">${t("copy")}</button></div><pre id="ptxt">${esc(p.prompt)}</pre>`:""}${ideasHtml()}</div>
- <div class="card"><h2>${t("s3")}</h2><label>${t("thumbText")}</label><input type="text" id="thumbText"><label>${t("colour")}</label><select id="pal" style="width:auto"><option>red</option><option>blue</option><option>green</option><option>purple</option></select>
- <div class="row"><button class="ghost" onclick="draw()">${t("draw")}</button><span class="err" id="msg4"></span></div>${made.map(m=>`<div class="pair small"><img class="made" src="/file?t=${T}&name=${encodeURIComponent(m.file)}"><div class="soft" style="margin-top:6px">${esc(m.file)}</div>${m.facts?`<div>${m.facts.repeats.length?`${t("repeat")}: ${esc(m.facts.repeats.join(", "))}.`:t("noRepeat")+"."} ${m.facts.new.length?`${t("newWords")}: ${esc(m.facts.new.join(", "))}`:""}</div>`:""}</div>`).join("")}<label>${t("checkFolder")}</label><div class="soft small">${t("checkHint")}</div><div class="row"><button class="ghost" onclick="checkThumbs()">${t("checkBtn")}</button><span class="err" id="msg5"></span></div>${checks.map(c=>`<div class="pair small"><img class="made" src="data:image/jpeg;base64,${c.picture}"><div>${c.lines.map(esc).join("<br>")}</div></div>`).join("")}<p class="soft small">${t("noWin")}</p></div>`;return h}
-function ideasHtml(){if(!ideas)return"";return `<div style="margin-top:12px">${ideas.test.map((r,i)=>`<div class="pair"><b>${esc(r.title)}</b><div class="soft small">${esc(r.notes.join(" · "))}</div><div class="small">${t("why")}: ${esc(r.why)}</div>${r.thumbs.map((x,k)=>`<div class="th small"><b>${esc(x.text)}</b> · ${x.repeats.length?`${t("repeat")}: ${esc(x.repeats.join(", "))}`:t("noRepeat")}<div class="soft">${esc(x.image_prompt)}</div><div class="row" style="margin-top:6px"><button class="ghost" onclick="useText(${i},${k})">${t("use")}</button><button class="ghost" onclick="geminiImg(${i},${k})">${t("image")}</button></div></div>`).join("")}</div>`).join("")}<p class="soft small">${t("imgWarn")}</p>${ideas.titles.length?`<details><summary>${t("more")}</summary><ul class="small">${ideas.titles.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></details>`:""}</div>`}
-function keyCard(){return `<div class="card"><details ${S.has_key?"open":""}><summary><b>${t("s4")}</b></summary><p class="soft small">${t("keyHint")}</p><div class="row"><input type="password" id="gkey" style="flex:1;min-width:240px" autocomplete="off" placeholder="${S.has_key?esc(t("keyOn")):""}"><button class="ghost" onclick="saveKey()">${t("keySave")}</button>${S.has_key?`<button class="ghost" onclick="delKey()">${t("keyDel")}</button>`:""}</div></details></div>`}
+function videoCard(){const p=S.promptDone,show=(k,name)=>`<h2 style="margin-top:16px">${name}</h2><div class="soft small">${esc(p[k].name)}</div><div class="row" style="margin:6px 0"><button onclick="copyP('${k}')" id="cp_${k}">${t("copy")}</button></div><pre id="txt_${k}">${esc(p[k].prompt)}</pre>`;
+ return `<div class="card"><h2>${t("s2")}</h2><label>${t("title")}</label><input type="text" id="title"><label>${t("text")}</label><textarea id="text"></textarea><div class="soft small">${t("textHint")}</div><input type="file" accept=".srt,.vtt,.txt" onchange="readFile(this)" style="margin-top:6px">
+ <div class="row"><button onclick="makePrompt()">${t("make")}</button><span class="err" id="msg3"></span></div>
+ ${p?`<p class="small">${t("savedIn")}: <b id="folder">${esc(p.folder)}</b><br><span class="soft">${t("paste")}</span></p>${show("title",t("pt"))}${show("thumb",t("pth"))}`:""}</div>
+ <div class="card"><h2>${t("s3")}</h2><div class="soft small">${t("checkHint")}</div><div class="row"><button class="ghost" onclick="checkThumbs()">${t("checkBtn")}</button><span class="err" id="msg5"></span></div>${checks.map(c=>`<div class="pair small"><img class="made" src="data:image/jpeg;base64,${c.picture}"><div>${c.lines.map(esc).join("<br>")}</div></div>`).join("")}<p class="soft small">${t("noWin")}</p></div>`}
 function poll(after){const go=async()=>{await load();if(S.job.running){setTimeout(go,900);return}after&&after(S.job)};go()}
 async function find(){keep();last.lang=$("vlang").value;const d=await call("/api/find",{niche:$("niche").value,lang:$("vlang").value});if(d.error){$("msg").textContent=er(d.error);return}found=null;poll(j=>{if(j.error){S.msg=er(j.error)}else{S.msg="";found=j.result;view="setup"}render();count()})}
 async function saveLists(){const pick=k=>[...document.querySelectorAll(".c_"+k)].filter(x=>x.checked).map(x=>x.value);const add=$("addc").value.split("\n").map(s=>s.trim()).filter(Boolean);const d=await call("/api/save",{lang:found.lang,niche:found.niche,dream:pick("dream"),model:pick("model"),add});if(d.error){$("msg2").textContent=er(d.error);return}poll(j=>{if(j.error){S.msg=er(j.error);render();count()}else{view="";found=null;render()}})}
 function refreshData(){call("/api/refresh").then(()=>poll())}
 function readFile(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("text").value=r.result};r.readAsText(f)}
 async function makePrompt(){keep();const d=await call("/api/prompt",{title:$("title").value,text:$("text").value});if(d.error){$("msg3").textContent=er(d.error);return}S.promptDone=d;render()}
-async function copyP(){try{await navigator.clipboard.writeText(S.promptDone.prompt)}catch(e){const r=document.createRange();r.selectNodeContents($("ptxt"));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand("copy")}$("cp").textContent=t("copied")}
-async function askAi(){keep();$("msg3").textContent="…";const d=await call("/api/ask",{title:$("title").value,text:$("text").value});if(d.error){$("msg3").textContent=er(d.error);return}ideas=d;render()}
-function useText(i,k){last.thumbText=ideas.test[i].thumbs[k].text;last.title=ideas.test[i].title;render()}
-async function draw(){keep();const x=$("thumbText").value.trim();if(!x){$("msg4").textContent=er("empty_text");return}const d=await call("/api/draw",{title:$("title").value,text:x,palette:$("pal").value});if(d.error){$("msg4").textContent=er(d.error);return}made.unshift(d);render()}
-async function geminiImg(i,k){keep();$("msg3").textContent="…";const r=ideas.test[i];const d=await call("/api/image",{title:r.title,prompt:r.thumbs[k].image_prompt});if(d.error){$("msg3").textContent=er(d.error);return}$("msg3").textContent="";made.unshift(d);render()}
+async function copyP(k){const text=S.promptDone[k].prompt;try{await navigator.clipboard.writeText(text)}catch(e){const r=document.createRange();r.selectNodeContents($("txt_"+k));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand("copy")}$("cp_"+k).textContent=t("copied")}
 async function checkThumbs(){keep();$("msg5").textContent="…";const d=await call("/api/check",{title:$("title").value});if(d.error){$("msg5").textContent=er(d.error);return}checks=d.checks;render()}
-async function saveKey(){keep();const k=$("gkey").value.trim();if(!k)return;await call("/api/key",{key:k});load()}
-async function delKey(){keep();await call("/api/key",{});ideas=null;load()}
 load();
 </script></body></html>"""
 
